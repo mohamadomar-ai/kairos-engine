@@ -1,0 +1,69 @@
+# trader-stack/docker/docker-compose.yml
+#
+# Single-container Postgres 16 with the pgvector extension preinstalled.
+# We use the `pgvector/pgvector:pg16` image rather than vanilla `postgres:16`
+# so we don't have to manually install the extension later — it'll be there
+# when we eventually want vector-similarity queries (Phase 3+ memory features
+# like "find the 10 historical signals most similar to the current one").
+#
+# Why port 5433 instead of the default 5432:
+#   Many Ubuntu systems already have a system Postgres running on 5432
+#   (especially if you've ever installed `postgresql-client` or any app
+#   that depends on it). Using 5433 sidesteps a confusing port conflict.
+#   trader-stack code reads PG_PORT from env so this is the only place
+#   the port is hardcoded.
+#
+# Why bind-mount ~/.trader-stack/pgdata instead of a named docker volume:
+#   So you can SEE the data on your filesystem, back it up with rsync/cp,
+#   inspect with `du -sh`, and the data survives `docker compose down -v`.
+#   Named volumes are fine but they hide the data inside Docker's storage —
+#   not what you want for a "never forget" system.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: trader-stack-pg
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB:       trader_stack
+      POSTGRES_USER:     trader
+      # Password is set at first init from the file below; if you want to
+      # change it later, edit init_postgres.sh which writes ~/.trader-stack/.pgpass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trader_local_dev}
+      # Tune Postgres for a single-writer time-series workload. These values
+      # are conservative — safe even on a 4 GB machine. Override via env if
+      # you're running on a beefier box.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+    ports:
+      # host:container. Host port 5433 to avoid the 5432 conflict noted above.
+      - "127.0.0.1:5433:5432"
+
+    volumes:
+      # Persistent data — lives on YOUR disk, survives container recreation.
+      - ${HOME}/.trader-stack/pgdata:/var/lib/postgresql/data
+      # Init scripts only run if pgdata is empty (first start). On subsequent
+      # starts they're ignored — which is what we want. Migrations go through
+      # the Python store module, not through these scripts.
+      - ./init.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+
+    healthcheck:
+      # Postgres takes ~5s to be ready on first boot. The Python connect
+      # path retries on its own, but having a healthcheck means
+      # `docker compose ps` shows "healthy" when it's actually ready.
+      test: ["CMD-SHELL", "pg_isready -U trader -d trader_stack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    # Modest tuning for a time-series workload — small but frequent writes.
+    # If your machine has < 4 GB RAM, drop shared_buffers to 128MB.
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c maintenance_work_mem=64MB
+        -c wal_compression=on
+        -c log_min_duration_statement=500

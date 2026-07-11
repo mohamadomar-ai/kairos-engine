@@ -1,0 +1,30 @@
+# trader-stack glue-layer dependencies.
+
+# ---- Market data ----
+# FX M1 feed (trader_stack/btc_oracle/feeds.py) is Dukascopy tick data —
+# needs only `requests` + stdlib lzma/struct, no dedicated client package.
+yfinance>=0.2.40             # only used by the legacy multi-agent path
+requests>=2.31.0             # Dukascopy tick downloads
+
+# ---- LangChain (used by the legacy multi-agent path) ----
+langchain-core
+langchain-community
+
+# ---- Forecasters ----
+# Kronos and TimesFM are installed by setup.sh from their repos.
+# TiRex installs from PyPI:
+tirex                        # NX-AI/TiRex — xLSTM foundation model
+# Chronos-2 installs from amazon/chronos package on PyPI:
+chronos-forecasting          # amazon/chronos — includes Chronos-2 pipeline
+
+# ---- Daemon plumbing ----
+filelock>=3.13.0             # safe concurrent state.json access
+python-dotenv>=1.0.0
+hmmlearn>=0.3.0              # Phase 2: HMM regime classifier
+scipy>=1.11.0                # hmmlearn dep, also used by some forecasters
+psycopg2-binary>=2.9.9       # Step 1: Postgres connection (memory store)
+
+# ---- Standard data stack ----
+pandas>=2.0.0
+numpy>=1.26.0
+huggingface-hub>=0.24.0
