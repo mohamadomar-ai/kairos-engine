@@ -24,15 +24,21 @@ A validation pipeline that only ever says yes is not a validation pipeline, it i
 ## Architecture
 
 ```mermaid
-flowchart LR
-    A["Dukascopy tick feed\nfull year, XAUUSD"] --> B["Regime classifier\nfour state Gaussian HMM"]
-    B --> C["Forecast ensemble\nKronos, TimesFM, TiRex, Chronos-2"]
-    C --> D["Trade filter\nconfidence, noise, regime, spread"]
-    D --> E["Signal assembly\ndirection and confidence"]
-    E --> F["Walk forward backtest\nsession aware cost model"]
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#001621", "primaryBorderColor": "#FF4103", "primaryTextColor": "#FFFFFF", "lineColor": "#FF4103"}}}%%
+flowchart TD
+    A["Dukascopy tick feed"] --> B["Regime classifier, 4 state HMM"]
+    B --> C["Forecast ensemble, 4 TSFMs"]
+    C --> D["Trade filters"]
+    D --> E["Signal assembly"]
+    E --> F["Walk forward backtest, session aware costs"]
     F --> G{"Expectancy gate"}
     G -->|PASS| H["Validated strategy"]
     G -->|FAIL| I["Rejected, no capital risked"]
+
+    classDef stage fill:#001621,stroke:#FF4103,color:#FFFFFF,stroke-width:2px;
+    classDef gate fill:#FF4103,stroke:#FF4103,color:#FFFFFF,stroke-width:2px;
+    class A,B,C,D,E,F,H,I stage;
+    class G gate;
 ```
 
 Every stage above is real, tested code, not a diagram of an intention. The feed layer pulls raw tick data from Dukascopy and reconstructs minute bars with genuine measured spread rather than a synthetic estimate. The regime classifier is a four state Gaussian Hidden Markov Model, refit on a rolling walk forward schedule so it never sees the future when labeling the past. The forecast ensemble runs four independent time series foundation models, Kronos, TimesFM, TiRex, and Chronos-2, and blends their output with a confidence weighted vote. The cost model prices every trade using session aware spread, slippage, commission, and swap, calibrated against live broker quotes rather than a textbook assumption, using hmmlearn for the regime fit and a pure Python Dukascopy client for data. Nothing reaches the expectancy gate without surviving all of it.
