@@ -56,3 +56,6 @@ pgdata/
 
 # --- Scratch / session artifacts (not part of the deliverable) ---
 Terminal_data.txt
+
+# --- Local Claude working instructions (internal, not for public repo) ---
+CLAUDE.md
